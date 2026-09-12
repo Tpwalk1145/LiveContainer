@@ -33,6 +33,9 @@ bool isLiveProcess = false;
 bool isSharedBundle = false;
 bool isSideStore = false;
 bool sideStoreExist = false;
+// set when invokeAppMain failed before mutating the process (JIT check),
+// so LiveContainerMain can fall back to the UI and show the stored error
+bool earlyLaunchFailure = false;
 
 @implementation NSUserDefaults(LiveContainer)
 + (instancetype)lcUserDefaults {
@@ -256,14 +259,20 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     if (!LCSharedUtils.certificatePassword && !isSideStore) {
 #if !TARGET_OS_SIMULATOR
         if(@available(iOS 26.0 ,*))  {
+            earlyLaunchFailure = true;
             return @"JITLess mode is required since iOS 26. Please set it up in settings. \nPlease go to LiveContainer settings -> tap \"Import Certificate from SideStore\" / \"Import Certificate\"";
         }
 #endif
+        // TrollStore opens us first and enables JIT via ptrace afterwards, asynchronously,
+        // which can take a few seconds on slow devices, so wait longer there
+        NSString *tsMarkerPath = [NSString stringWithFormat:@"%@/../_TrollStore", NSBundle.mainBundle.bundlePath];
+        int maxJITWaits = !access(tsMarkerPath.UTF8String, F_OK) ? 100 : 10;
         // First of all, let's check if we have JIT
-        for (int i = 0; i < 10 && !checkJITEnabled(); i++) {
+        for (int i = 0; i < maxJITWaits && !checkJITEnabled(); i++) {
             usleep(1000*100);
         }
         if (!checkJITEnabled()) {
+            earlyLaunchFailure = true;
             appError = @"JIT was not enabled. If you want to use LiveContainer without JIT, setup JITLess mode in settings.";
             return appError;
         }
@@ -817,8 +826,11 @@ int LiveContainerMain(int argc, char *argv[]) {
                 CFRunLoopRun();
             } else {
                 [lcUserDefaults setObject:appError forKey:@"error"];
-                // potentially unrecovable state, exit now
-                return 1;
+                if(!earlyLaunchFailure) {
+                    // potentially unrecovable state, exit now
+                    return 1;
+                }
+                // failed before any process mutation, fall back to the UI so the error is shown
             }
         }
     }
