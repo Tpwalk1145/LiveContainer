@@ -413,6 +413,18 @@ extension LCUtils {
                 onServerMessage?("JIT acquisition will continue in StikDebug.")
             }
             await UIApplication.shared.open(launchURL)
+        } else if jitEnabler == .TrollStore {
+            let tsPath = "\(Bundle.main.bundlePath)/../_TrollStore"
+            if access((tsPath as NSString).utf8String, 0) != 0 {
+                onServerMessage?("LiveContainer is not installed via TrollStore.")
+                return false
+            }
+            LCSharedUtils.launchToGuestApp(withClassicMode: classicMode)
+            return true
+        } else if jitEnabler == .JailBreak {
+            // no reliable way to detect a jailbreak, JIT is assumed to be provided by the environment
+            LCSharedUtils.launchToGuestApp(withClassicMode: classicMode)
+            return true
         } else if jitEnabler == .SideStore {
             onServerMessage?("JIT acquisition will continue in SideStore.")
             let launchURL = URL(string: "sidestore://enable-jit?bundle-id=\(Bundle.main.bundleIdentifier!)")!
