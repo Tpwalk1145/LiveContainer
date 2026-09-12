@@ -287,7 +287,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         }
         if (!checkJITEnabled()) {
             earlyLaunchFailure = true;
-            appError = @"JIT was not enabled. If you want to use LiveContainer without JIT, setup JITLess mode in settings.";
+            appError = @"JIT was not enabled. If you are using TrollStore, check TrollStore for an \"Error enabling JIT\" alert, and make sure URL scheme is enabled in TrollStore settings. Anti-detection tweaks injected into LiveContainer can also block JIT. If you want to use LiveContainer without JIT, setup JITLess mode in settings.";
             return appError;
         }
     }
