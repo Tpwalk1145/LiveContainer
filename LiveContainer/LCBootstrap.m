@@ -97,9 +97,23 @@ static BOOL checkJITEnabled() {
         return YES;
     }
     
-    // check csflags
-    int flags;
-    csops(getpid(), 0, &flags, sizeof(flags));
+    // check csflags, but through a raw syscall: tweaks that spoof the environment
+    // may hook csops and hide CS_DEBUGGED from us
+    int flags = 0;
+    register long x0 __asm__("x0") = getpid();
+    register long x1 __asm__("x1") = 0; // CS_OPS_STATUS
+    register long x2 __asm__("x2") = (long)&flags;
+    register long x3 __asm__("x3") = sizeof(flags);
+    register long x16 __asm__("x16") = 169; // SYS_csops
+    __asm__ __volatile__ (
+                          "svc #0x80"
+                          : "+r"(x0)
+                          : "r"(x1), "r"(x2), "r"(x3), "r"(x16)
+                          : "memory"
+                          );
+    if(x0 != 0) {
+        return NO;
+    }
     return (flags & CS_DEBUGGED) != 0;
 #endif
 }
